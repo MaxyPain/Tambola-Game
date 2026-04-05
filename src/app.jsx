@@ -145,6 +145,7 @@ const initialState = {
   timerMs: 30000,
   drawDeadline: null,
   winner: null,
+  isStarting: false,
   paused: false,
   isHost: false,
   error: "",
@@ -198,6 +199,8 @@ function reducer(state, action) {
         timerMs: action.room.timerMs || 30000,
         drawDeadline: action.room.drawDeadline || null,
         winner: action.room.winner || null,
+        isStarting: !!action.room.isStarting,
+        showWinner: action.room.winner ? state.showWinner : false, // Reset modal if game restarts
         paused: !!action.room.paused,
         isHost: !!action.room.players?.find((p) => p.playerId === action.selfId && p.isHost),
       };
@@ -229,6 +232,7 @@ function App() {
   const [timerValue, setTimerValue] = React.useState(30);
   const [countdown, setCountdown] = React.useState(null);
   const [draftReady, setDraftReady] = React.useState(false);
+  const calledNumbersRef = useRef(null);
   const ticketGridRef = useRef(null);
 
   useEffect(() => setNameInput(state.name || ""), [state.name]);
@@ -321,10 +325,10 @@ function App() {
   }, [state.drawDeadline, state.paused]);
 
   useEffect(() => {
-    if (!state.showWinner) return;
-    const t = setTimeout(() => dispatch({ type: "set", payload: { showWinner: false } }), 5000);
-    return () => clearTimeout(t);
-  }, [state.showWinner]);
+    if (calledNumbersRef.current) {
+      calledNumbersRef.current.scrollTop = calledNumbersRef.current.scrollHeight;
+    }
+  }, [state.calledNumbers]);
 
   useEffect(() => {
     if (!state.showNumberPopup) return;
@@ -391,6 +395,14 @@ function App() {
     });
   };
 
+  const resetGame = () => {
+    if (!state.roomId) return;
+    socket.emit("admin:reset_game", {
+      roomId: state.roomId,
+      playerId: getPlayerId(),
+    });
+  };
+
   const voteDraw = () => {
     if (!state.roomId || state.showNumberPopup || state.winner) return;
     socket.emit("vote:draw", {
@@ -441,6 +453,14 @@ function App() {
       playerId: getPlayerId(),
       timerMs: Number(timerValue) * 1000,
     });
+  };
+
+  const handlePlayAgainClick = () => {
+    if (state.isHost) {
+      resetGame();
+    } else {
+      dispatch({ type: "info", message: "Waiting for the host to start a new match..." });
+    }
   };
 
   const current = state.currentNumber ? String(state.currentNumber).padStart(2, "0") : "--";
@@ -501,7 +521,9 @@ function App() {
 
             <div className="row">
               <button className="button secondary" onClick={joinRoom} style={{ flex: 1 }}>Join Room</button>
-              <button className="button secondary" onClick={reconnectRoom} style={{ flex: 1 }}>Rejoin</button>
+              {getLocal("tambola_room") && getLocal("tambola_room") === roomInput && state.roomId !== roomInput && (
+                <button className="button secondary" onClick={reconnectRoom} style={{ flex: 1 }}>Rejoin</button>
+              )}
             </div>
 
             {state.roomId && (
@@ -648,7 +670,7 @@ function App() {
               <h2>All Called Numbers</h2>
             </div>
             <div className="card-body">
-              <div className="summary" style={{ justifyContent: "flex-start", maxHeight: 150, overflowY: "auto" }}>
+              <div className="summary" ref={calledNumbersRef} style={{ justifyContent: "flex-start", maxHeight: 150, overflowY: "auto" }}>
                 {state.calledNumbers.length === 0 ? <span className="subtle">No numbers drawn yet.</span> : state.calledNumbers.map((n) => (
                   <span className="chip" key={n}>{String(n).padStart(2, "0")}</span>
                 ))}
@@ -710,6 +732,11 @@ function App() {
                 <span className="timer">Connected players: {state.players.filter((p) => p.connected).length}</span>
                 <span className="timer">Room limit: {state.room?.playerLimit || state.roomLimit}</span>
               </div>
+              {state.winner && (
+                <div className="row" style={{ marginTop: 8 }}>
+                  <button className="button success full" onClick={handlePlayAgainClick}>Play Again</button>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -728,9 +755,18 @@ function App() {
             <div className="timer">Winner</div>
             <h2>{state.winner.name}</h2>
             <p>Full house completed. Confetti and sound triggered for all connected devices.</p>
-            <div className="row" style={{ justifyContent: "center" }}>
+            <div className="row" style={{ justifyContent: "center", marginTop: 20 }}>
               <button className="button success" onClick={() => dispatch({ type: "set", payload: { showWinner: false } })}>Close</button>
+              <button className="button success" onClick={handlePlayAgainClick}>Play Again</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {state.isStarting && countdown !== null && countdown <= 4 && countdown > 0 && (
+        <div className="number-popup-backdrop">
+          <div className="number-popup pulse" key={countdown} style={{ border: 'none', background: 'transparent', fontSize: '150px', boxShadow: 'none', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+            {countdown > 1 ? countdown - 1 : "GO!"}
           </div>
         </div>
       )}

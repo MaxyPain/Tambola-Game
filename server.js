@@ -132,6 +132,7 @@ function createRoom(playerLimit) {
     timerMs: 30000,
     paused: false,
     pausedRemainingMs: null,
+    isStarting: false,
     drawDeadline: null,
     drawTimer: null,
     winner: null,
@@ -167,6 +168,7 @@ function serializeRoom(room) {
     timerMs: room.timerMs,
     paused: room.paused,
     drawDeadline: room.drawDeadline,
+    isStarting: room.isStarting,
     winner: room.winner,
     hostPlayerId: room.hostPlayerId,
     calledNumbers: room.calledNumbers,
@@ -217,10 +219,17 @@ function scheduleAutoDraw(room, keepRemaining = false) {
   const activeConnectedCount = [...room.players.values()].filter(p => p.connected).length;
   if (activeConnectedCount < room.playerLimit) {
     room.drawDeadline = null;
+    room.isStarting = false;
     return;
   }
 
-  const ms = keepRemaining && room.pausedRemainingMs != null ? room.pausedRemainingMs : room.timerMs;
+  let ms = keepRemaining && room.pausedRemainingMs != null ? room.pausedRemainingMs : room.timerMs;
+  room.isStarting = false;
+
+  if (room.calledNumbers.length === 0 && (!keepRemaining || room.pausedRemainingMs == null)) {
+    ms = 4000; // 4 seconds total to accommodate 3.. 2.. 1.. GO
+    room.isStarting = true;
+  }
   room.drawDeadline = Date.now() + ms;
   room.pausedRemainingMs = null;
 
@@ -493,6 +502,35 @@ io.on("connection", (socket) => {
     } else {
       checkAndStartTimer(room);
     }
+    emitRoomState(room);
+  });
+
+  socket.on("admin:reset_game", ({ roomId, playerId }) => {
+    const room = roomById(roomId);
+    if (!room) return;
+    const player = room.players.get(String(playerId || ""));
+    if (!player || !player.isHost) return;
+
+    room.winner = null;
+    room.paused = false;
+    room.calledNumbers = [];
+    room.remainingNumbers = shuffle(range(1, 90));
+    room.votes.clear();
+    room.lastDrawTime = 0;
+    room.ticketHashes.clear();
+    room.isStarting = false;
+
+    for (const p of room.players.values()) {
+      p.ticket = generateTicket(room.ticketHashes);
+      p.marked.clear();
+      p.hasWon = false;
+      if (p.socketId) {
+        io.to(p.socketId).emit("self:state", selfPayload(p, room));
+      }
+    }
+
+    clearDrawTimer(room);
+    checkAndStartTimer(room);
     emitRoomState(room);
   });
 
