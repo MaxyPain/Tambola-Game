@@ -227,7 +227,7 @@ function scheduleAutoDraw(room, keepRemaining = false) {
   room.isStarting = false;
 
   if (room.calledNumbers.length === 0 && (!keepRemaining || room.pausedRemainingMs == null)) {
-    ms = 4000; // 4 seconds total to accommodate 3.. 2.. 1.. GO
+    ms = 6000; // 6 seconds total to accommodate 5.. 4.. 3.. 2.. 1.. GO
     room.isStarting = true;
   }
   room.drawDeadline = Date.now() + ms;
@@ -311,7 +311,7 @@ app.get("*", (_req, res) => {
 
 io.on("connection", (socket) => {
   socket.on("room:create", ({ playerLimit, name, playerId }) => {
-    const limit = Math.max(1, Math.min(Number(playerLimit) || 20, 100));
+    const limit = Math.max(1, Math.min(Number(playerLimit) || 2, 100));
     const room = createRoom(limit);
 
     const myPlayerId = String(playerId || crypto.randomBytes(16).toString("hex"));

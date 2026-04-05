@@ -228,7 +228,7 @@ function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [roomInput, setRoomInput] = React.useState(getLocal("tambola_room", ""));
   const [nameInput, setNameInput] = React.useState(state.name || "");
-  const [playerLimit, setPlayerLimit] = React.useState(20);
+  const [playerLimit, setPlayerLimit] = React.useState(2);
   const [timerValue, setTimerValue] = React.useState(30);
   const [countdown, setCountdown] = React.useState(null);
   const [draftReady, setDraftReady] = React.useState(false);
@@ -337,6 +337,12 @@ function App() {
   }, [state.showNumberPopup]);
 
   useEffect(() => {
+    if (state.isStarting && ticketGridRef.current) {
+      ticketGridRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [state.isStarting]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomFromUrl = params.get("room");
     if (roomFromUrl) {
@@ -365,7 +371,7 @@ function App() {
     const name = (nameInput || "Host").trim();
     if (!name) return dispatch({ type: "error", message: "Enter your name." });
     socket.emit("room:create", {
-      playerLimit: Number(playerLimit) || 20,
+      playerLimit: Number(playerLimit) || 2,
       name,
       playerId: getPlayerId(),
     });
@@ -763,7 +769,7 @@ function App() {
         </div>
       )}
 
-      {state.isStarting && countdown !== null && countdown <= 4 && countdown > 0 && (
+      {state.isStarting && countdown !== null && countdown <= 6 && countdown > 0 && (
         <div className="number-popup-backdrop">
           <div className="number-popup pulse" key={countdown} style={{ border: 'none', background: 'transparent', fontSize: '150px', boxShadow: 'none', textShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
             {countdown > 1 ? countdown - 1 : "GO!"}
