@@ -337,8 +337,17 @@ function App() {
   }, [state.showNumberPopup]);
 
   useEffect(() => {
-    if (state.isStarting && ticketGridRef.current) {
-      ticketGridRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (state.isStarting) {
+      // Dismiss the mobile keyboard if open, as it alters viewport height
+      if (document.activeElement && typeof document.activeElement.blur === "function") {
+        document.activeElement.blur();
+      }
+      // Wait for keyboard dismissal and viewport resizing to settle before scrolling
+      setTimeout(() => {
+        if (ticketGridRef.current) {
+          ticketGridRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }, 400);
     }
   }, [state.isStarting]);
 
